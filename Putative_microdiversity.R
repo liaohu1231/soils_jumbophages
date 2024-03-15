@@ -4,9 +4,9 @@ library(ggsci)
 library(pheatmap)
 library(dplyr)
 library(ggpubr)
-instrain=read.table("all.scaffold.nucldiversity.tsv",header = 1,row.names = 1,check.names = F)
+instrain=read.table("all_PJPD_scaffold_nucl.tsv",header = 1,row.names = 1,check.names = F)
 instrain_shannon=as.data.frame(diversity(t(instrain), "shannon"))
-data=read.table("../all.jumphages.rpkm.tsv",header = 1,row.names = 1,check.names = F)
+data=read.table("../Macrodiversity/all.PJPD.rpkm",header = 1,row.names = 1,check.names = F)
 relative_abundance=function(d){
   dta_sum=apply(d,2,function(x){x/sum(x)})
 }
@@ -34,9 +34,9 @@ library(reshape2)
 instrain_melt=melt(as.matrix(instrain))
 instrain_melt=instrain_melt[instrain_melt$value>0,]
 instrain_melt=na.omit(instrain_melt)
-length=read.table("Total_GFVD_jumbophage_95-80.length",sep = '\t',header = F,row.names = 1,check.names = F)
+length=read.table("quality_summary_putative_jumbo.tsv",sep = '\t',header = F,row.names = 1,check.names = F)
 colnames(length)='length'
-group=read.csv("../metadata.txt",sep = '\t')
+group=read.csv("../Macrodiversity//metadata.txt",sep = '\t')
 group$stage=rep(c("early_stage","later_stage"),c(12,12))
 Freq=data.frame(Freq=apply(data_rel,1,function(x){sum(x>0)}))
 instrain_melt$Freq=as.factor(Freq[as.character(instrain_melt$Var1),1])
@@ -55,7 +55,7 @@ rownames(group)=group$sample
 data_rel$site=group[rownames(data_rel),2]
 data_rel$stage=group[rownames(data_rel),4]
 
-data_sites=as.data.frame(matrix(NA,8,1876))
+data_sites=as.data.frame(matrix(NA,8,nrow(data)))
 colnames(data_sites)=rownames(data)
 for (i in 1:nrow(data)) {
   print(i)
@@ -68,7 +68,7 @@ for (i in 1:nrow(data)) {
 }
 tmp=as.data.frame(tapply(data_rel[,1],INDEX = data_rel$site,sum))
 rownames(data_sites)=rownames(tmp)
-data_stages=as.data.frame(matrix(NA,2,1876))
+data_stages=as.data.frame(matrix(NA,2,nrow(data)))
 colnames(data_stages)=rownames(data)
 
 for (i in 1:nrow(data)){
@@ -113,11 +113,9 @@ for (i in 1:nrow(data)){
 }
 data_sites_freq=data.frame(site_freq=apply(data_sites,2,sum))
 
-instrain$Freq=as.numeric(instrain$Freq)
-instrain$viromes_shannon=abu_shannon[as.character(instrain$Var2),1]
-
 instrain_melt$geographic_range=vOTUs_geo[as.character(instrain_melt$Var1),1]
-write.table(vOTUs_geo,"vOTUs_geo.tsv",sep = '\t',row.names = T,quote = F)
+write.table(vOTUs_geo,"puative_vOTUs_geo.tsv",sep = '\t',row.names = T,quote = F)
+
 ggplot(instrain_melt,aes(geographic_range,log10(value)))+
   geom_boxplot(aes(fill=geographic_range))+
   #geom_jitter(height = 0,width = 0.3,alpha=0.5,size=4,shape=21)+
@@ -128,13 +126,33 @@ ggplot(instrain_melt,aes(geographic_range,log10(value)))+
                                         c("intra_later_stage","inter_stage"),
                                         c("sample_specific (early)","sample_specific (later)"),
                                         c('site_specific (early)','site_specific (later)'),
-                                        c('intra_early_stage','sample_specific (early)'),
                                         c("intra_later_stage",'sample_specific (early)')))+
   theme(axis.text.x = element_text(angle = 30,hjust = 1,size = 10,face = "bold"),
         axis.text.y = element_text(size = 13,face = "bold"),
         axis.title = element_text(size=18))
 
-ggsave("Geographic_range_microdiveristy.pdf",device = 'pdf',width = 10,height = 5)
+ggsave("Putative_geographic_range_microdiveristy.pdf",device = 'pdf',width = 10,height = 5)
+###inter_stage
+instrain_inter=instrain_melt[grep("inter",instrain_melt$geographic_range),]
+instrain_inter$stage=group[as.character(instrain_inter$Var2),4]
+ggplot(instrain_inter,aes(x=stage,y=log10(value),group=stage))+
+  #geom_density(mapping = aes(fill=stage,color=stage),alpha=0.6)+
+  geom_jitter(height = 0,width = 0.28,alpha=0.6,size=2.7,shape=21,fill="#F2BD14")+
+  geom_boxplot(fill="#90AFDA",alpha=0.9)+
+  theme_classic()+
+  labs(y="Log10(Microdiversity (pi))")+
+  scale_color_aaas()+
+  stat_compare_means(comparisons = list(c("early_stage","later_stage")),
+                     method = "t.test")+
+  theme(axis.text.x = element_text(angle = 30,hjust = 1,size = 10,face = "bold"),
+        axis.text.y = element_text(size = 10,face = "bold"),
+        axis.title = element_text(size=15))
+shapiro.test(x = instrain_inter[grep("later",instrain_inter$stage),3])
+shapiro.test(x = instrain_inter[grep("early",instrain_inter$stage),3])
+wilcox.test(instrain_inter[grep("later",instrain_inter$stage),3],
+       instrain_inter[grep("early",instrain_inter$stage),3],alternative = "greater")
+median(instrain_melt$value)
+ggsave("putative_inter_stage_boxplot.pdf",device = 'pdf',width = 3,height = 5)
 
 for(i in 1:nrow(instrain_melt)){
   instrain_melt$relative_abundance[i]=data_rel[which(rownames(data_rel)==instrain_melt$Var1[i]),
@@ -149,7 +167,7 @@ ggplot(instrain_melt,aes(relative_abundance,log10(value)))+
 ggsave("relative_abundance_microdiveristy.pdf",device = 'pdf',width = 6,heigh=5)
 
 #host
-host=read.csv("jumbo_host.tsv",header = F,row.names = 1)
+host=read.csv("../tree/all_GFJPD_host.csv",header = F,row.names = 1)
 table_host=as.data.frame(table(host$V4))
 table_host=table_host[order(table_host$Freq,decreasing = T),]
 
@@ -165,47 +183,59 @@ instrain_host=rbind(instrain_melt[which(as.character(instrain_melt$host)=="Firmi
                     instrain_melt[which(as.character(instrain_melt$host)=="Bacteroidetes"),],
                     instrain_melt[which(as.character(instrain_melt$host)=="Actinobacteria"),])
 
-ggplot(instrain_host,aes(host,log10(value),fill=host))+
+
+ggplot(instrain_host,aes(host,log10(value),fill=stages))+
   geom_boxplot()+
   #geom_jitter(height = 0,width = 0.3,alpha=0.5,size=4,shape=21)+
   labs(y="Microdiversity (pi)")+
   theme_classic()+
   scale_fill_aaas()+
   stat_compare_means(comparisons = list(c("Firmicutes","Proteobacteria"),
-                                                        c("Bacteroidetes","Proteobacteria"),
-                                                        c("Actinobacteria","Proteobacteria"),
-                                                        c("Actinobacteria","Firmicutes"),
-                                                        c("Actinobacteria","Bacteroidetes")),
+                                           c("Bacteroidetes","Proteobacteria"),
+                                          c("Actinobacteria","Proteobacteria"),
+                                          c("Actinobacteria","Firmicutes"),
+                                          c("Actinobacteria","Bacteroidetes")),
                                      method = "wilcox.test")+
   theme(axis.text.x = element_text(angle = 60,hjust = 1))
-
-
+wilcox.test(instrain_host[grep(Actinobacteria),])
 summary(lm(data = instrain_melt,formula = log(value)~length))
-cor.test(x = instrain_melt$value,y = instrain_melt$length,method="spearman")
+cor.test(x = instrain_melt$value,y = instrain_melt$length/1000,method="spearman")
 ggplot(instrain_melt,aes(length,log10(value)))+
   #geom_boxplot()+
   geom_point(alpha=0.5,size=2)+
   theme_classic()+
-  labs(x="estimated length",y="log(Microdiversity (pi))")+
+  labs(x="length",y="log(Microdiversity (pi))")+
   geom_smooth(aes(as.numeric(length),log10(value)),method='lm',
               formula=y~x,level=0.95,color='blue')+
   scale_fill_d3(palette = "category10")
 
+instrain_melt$length=length[instrain_melt$Var1,1]
+instrain_melt$stages=group[instrain_melt$Var2,4]
+instrain_melt$quality=length[instrain_melt$Var1,7]
+instrain_melt_length=instrain_melt[-grep("Medium-quality",instrain_melt$quality),]
+instrain_melt_length=instrain_melt_length[-grep("Low-quality",instrain_melt_length$quality),]
+
 for (i in 1:nrow(instrain_melt)){
-  if(instrain_melt$length[i] > 500000){
-    instrain_melt$phages[i] = "Megaphages"
+  if(instrain_melt$length[i] > 330000){
+    instrain_melt$phages[i] = ">330kbp"
   }else{
-    instrain_melt$phages[i] = "jumbophages"
+    instrain_melt$phages[i] = "<330kbp"
   }
 }
-ggplot(instrain_melt,aes(phages,log10(value),fill=phages))+
+library(ggpointdensity)
+ggplot(instrain_melt,aes(phages,log10(value),fill=stages))+
+  #geom_point(alpha=0.8,size=2)+
   geom_boxplot()+
-  #geom_point(alpha=0.5,size=2)+
+  #geom_pointdensity() +
   theme_classic()+
-  labs(x="estimated length",y="log(Microdiversity (pi))")+
-  #geom_smooth(aes(as.numeric(length),log10(value)),method='lm',
-              #formula=y~x,level=0.95,color='blue')+
-  scale_fill_d3(palette = "category10")
+  labs(x="length",y="log(Microdiversity (pi))")+
+  #geom_smooth(aes(as.numeric(length),log10(value)),method='glm',
+   #           formula=y~x,level=0.95,color='blue')+
+  scale_fill_d3(palette = "category10")+
+  stat_compare_means(comparisons = list(c(">330kbp","<330kbp")))
+summary(glm(data = instrain_melt,
+           formula = log(value)~length))
+
 
 ###gene_microdiversity——pNpS
 pnps=read.csv("all.gene.pNpS.tsv",sep='\t',row.names = 1,header = 1,check.names = F)
@@ -219,14 +249,29 @@ for (i in 1:nrow(pnps)){
 library(reshape2)
 pnps$contigs=as.factor(pnps$contigs)
 pnps$genes=rownames(pnps)
-pnps_melt=melt(pnps)
-pnps_melt=na.omit(pnps_melt)
-pnps_melt$geographic_range=vOTUs_geo[as.character(pnps_melt$contigs),1]
-pnps_melt=na.omit(pnps_melt)
 
-ggplot(pnps_melt,aes(geographic_range,log10(value)))+
-  geom_violin(aes(color=geographic_range),fill="gray90")+
-  geom_boxplot(aes(fill=geographic_range),width=0.5)+
+pnps$geo=vOTUs_geo[as.character(pnps$contigs),1]
+pnps_geo=as.data.frame(matrix(data = NA,nrow = 7,ncol = 1))
+rownames(pnps_geo)=unique(vOTUs_geo$geogra_range)[1:7]
+pnps_geo=pnps_geo[,-1]
+source("new.cbind.R")
+for (i in 1:24) {
+  tmp=pnps[,c(i,27)]
+  tmp=na.omit(tmp)
+  tmp=as.matrix(tapply(X = tmp[,1],tmp$geo,mean))
+  colnames(tmp)=colnames(pnps)[i]
+  tmp=as.data.frame(tmp)
+  pnps_geo=new.cbind(pnps_geo,tmp)
+}
+
+pnps_melt=melt(as.matrix(pnps_geo))
+pnps_melt=na.omit(pnps_melt)
+#pnps_melt$geographic_range=vOTUs_geo[as.character(pnps_melt$contigs),1]
+#pnps_melt=na.omit(pnps_melt)
+
+ggplot(pnps_melt,aes(Var1,value))+
+  geom_violin(aes(color=Var1),fill="gray90")+
+  geom_boxplot(aes(fill=Var1),width=0.5)+
   #geom_jitter(height = 0,width = 0.3,alpha=0.5,size=4,shape=21)+
   theme_classic()+
   labs(x="Geographic range of jumbo vOTUs",y="log(pNpS)")+
@@ -290,15 +335,25 @@ ggplot(pNpS_positive,aes(x = ko,y=pNpS_ratio))+
   geom_boxplot()+
   coord_flip()+theme_classic()
 
-
+ggplot(pnps_melt,mapping =aes(x=log10(value)))+
+  geom_density(fill="lightblue",alpha=0.7)+
+  theme_classic()+
+  geom_vline(xintercept = -0.6828)
+10^-0.6828
 write.table(pNpS_positive,"pNpS_positive.txt",sep='\t',quote = F,row.names = F)
 
 ##positive_genes_annotation
-positive_genes=pnps_melt[pnps_melt$value>1,]
+positive_genes=pnps_melt[pnps_melt$value>0.2,]
 positive_genes_drep=positive_genes[!duplicated(positive_genes$genes),]
-annotation=read.table("../functions/Total_GFVD_jumbophage_95-80_drep.best_kofam_annotation",row.names = 2,header = F,sep='\t')
-positive_genes_drep$annotaion=annotation[as.character(positive_genes_drep$genes),2]
+annotation=read.table("../functions/Total_GFVD_jumbophage_95-80_drep.best_kofam_annotation",row.names = 1,header = F,sep='\t')
+positive_genes_drep$KEGG=annotation[as.character(positive_genes_drep$genes),1]
+positive_genes_drep$annotaion=annotation[as.character(positive_genes_drep$genes),5]
 anno_table=as.data.frame(table(positive_genes_drep$annotaion))
+positive_genes_drep=as.data.frame(positive_genes_drep)
+
+write.table(x = positive_genes_drep[,c(1:5,7:9)],file = "Table_S6_positive_genes.tsv",quote = F,
+          row.names = F,sep='\t',na = "NA")
+
 sum(anno_table$Freq)
 ###conANI
 instrain_compare=read.table("compare_comparisonsTable.tsv",sep='\t',
@@ -317,12 +372,12 @@ for (i in 1:nrow(instrain_compare)){
       instrain_compare$group[i] = "intra_early"
     }
   }
-  else if(stage_2 == "later_stage" && stage_3 == "later_stage")
+  else if(stage_2 == "late_stage" && stage_3 == "late_stage")
   {
     if(sites_2==sites_3){
-    instrain_compare$group[i]="intra_sites (later)"
+    instrain_compare$group[i]="intra_sites (late)"
     }else{
-      instrain_compare$group[i] = "intra_later"
+      instrain_compare$group[i] = "intra_late"
       }
   }
   else{
